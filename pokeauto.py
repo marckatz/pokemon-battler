@@ -11,13 +11,15 @@ def calc_stat(base_stat, iv, ev, lvl, nature):
     return math.floor((math.floor( ((2 * base_stat + iv + math.floor(ev / 4)) * lvl) / 100) + 5) * nature)
 
 class Pokemon:
-    #name, type1, nature: String; type2: String or None, level, base_{stat}: int, iv_spread, ev_spread:[int]
+    #name, type1, nature: String; type2: String or None; level, base_{stat}: int; iv_spread, ev_spread:[int]
     def __init__(self, name, type1, type2, level, base_hp, base_attack, base_defense, base_speed, iv_spread, ev_spread, nature) -> None:
         nature_multipliers = natures[nature]
 
         max_hp = calc_hp(base_hp, iv_spread[0], ev_spread[0], level)
         atk = calc_stat(base_attack, iv_spread[1], ev_spread[1], level, nature_multipliers[1])
         df = calc_stat(base_defense, iv_spread[2], ev_spread[2], level, nature_multipliers[2])
+        spa = calc_stat(base_defense, iv_spread[3], ev_spread[3], level, nature_multipliers[3])
+        spd = calc_stat(base_defense, iv_spread[4], ev_spread[4], level, nature_multipliers[4])
         spe = calc_stat(base_speed, iv_spread[5], ev_spread[5], level, nature_multipliers[5])
         
         self.name = name
@@ -28,10 +30,12 @@ class Pokemon:
         self.current_hp = self.max_hp
         self.attack = atk
         self.defense = df
+        self.special_atk = spa
+        self.special_def = spd
         self.speed = spe
 
     def __str__(self) -> str:
-        return f"{self.name}: hp: {self.current_hp}/{self.max_hp}"
+        return f"{self.name.capitalize()}: hp: {self.current_hp}/{self.max_hp}"
 
     def display(self):
         print(self.name.capitalize()+":")
@@ -41,6 +45,8 @@ class Pokemon:
         print(f"\tHP:\t{self.max_hp}")
         print(f"\tATK:\t{self.attack}")
         print(f"\tDEF:\t{self.defense}")
+        print(f"\tSPA:\t{self.special_atk}")
+        print(f"\tSPD:\t{self.special_def}")
         print(f"\tSPE:\t{self.speed}")
 
     def take_damage(self, damage):
@@ -54,10 +60,12 @@ def get_damage_multiplier(attacking, defending):
         multiplier *= type_chart[type_order.index(attacking_type)][type_order.index(defending.type2)]
     return multiplier
 
-def attack(attacking, defending):
+def attack(attacking, defending, damage_multiplier):
     power = 60
-    damage_multiplier = get_damage_multiplier(attacking, defending)
-    damage = ((((((2 * attacking.level) / 5) + 2) * power * (attacking.attack/defending.defense)) / 50) + 2)
+    if attacking.attack > attacking.special_atk:
+        damage = ((((((2 * attacking.level) / 5) + 2) * power * (attacking.attack/defending.defense)) / 50) + 2)
+    else:
+        damage = ((((((2 * attacking.level) / 5) + 2) * power * (attacking.special_atk/defending.special_def)) / 50) + 2)
     damage *= damage_multiplier
     damage *= (random.randint(85,100) / 100)
     return round(damage)
@@ -71,11 +79,16 @@ def fight(pokemon1, pokemon2):
         print(f"{faster_pokemon.name.capitalize()} Wins!")
         return
     else:
-        damage = attack(faster_pokemon, slower_pokemon)
+        damage_multiplier = get_damage_multiplier(faster_pokemon, slower_pokemon)
+        damage = attack(faster_pokemon, slower_pokemon, damage_multiplier)
         print(faster_pokemon)
         print(slower_pokemon)
         slower_pokemon.take_damage(damage)
         print(f"{faster_pokemon.name.capitalize()} attacks {slower_pokemon.name.capitalize()} for {damage} damage!")
+        if damage_multiplier > 1:
+            print("It's super effective!")
+        elif damage_multiplier < 1:
+            print("It's not very effective")
     if(faster_pokemon.current_hp <= 0):
         print(f"{slower_pokemon.name.capitalize()} Wins!")
         return
@@ -83,17 +96,22 @@ def fight(pokemon1, pokemon2):
         print(f"{faster_pokemon.name.capitalize()} Wins!")
         return
     else:
-        damage = attack(slower_pokemon, faster_pokemon)
+        damage_multiplier = get_damage_multiplier(slower_pokemon, faster_pokemon)
+        damage = attack(slower_pokemon, faster_pokemon, damage_multiplier)
         print(faster_pokemon)
         print(slower_pokemon)
         faster_pokemon.take_damage(damage)
         print(f"{slower_pokemon.name.capitalize()} attacks {faster_pokemon.name.capitalize()} for {damage} damage!")
+        if damage_multiplier > 1:
+            print("It's super effective!")
+        elif damage_multiplier < 1:
+            print("It's not very effective")
         fight(faster_pokemon, slower_pokemon)
 
 def create_pokemon(pokemon_name):
     max_iv_spread = [31,31,31,31,31,31]
-    #4 hp, max atk, max def, 0 rest
-    ev_spread = [4, 252, 252, 0, 0, 0]
+    #4 hp, max atk, max spa, 0 rest
+    ev_spread = [4, 252, 0, 252, 0, 0]
     url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_name}"
     response = requests.get(url)
     poke_json = response.json()
@@ -108,15 +126,9 @@ def create_pokemon(pokemon_name):
     base_spa = stats[3]["base_stat"]
     base_spd = stats[4]["base_stat"]
     base_spe = stats[5]["base_stat"]
-    poke = Pokemon(pokemon_name, type_1, type_2, level, base_hp, base_atk, base_def, base_spe, max_iv_spread, ev_spread, "lonely")
+    poke = Pokemon(pokemon_name, type_1, type_2, level, base_hp, base_atk, base_def, base_spe, max_iv_spread, ev_spread, "hardy")
     return poke
 
-# p1 = Pokemon("Golem",   "Rock",     "Ground",   100, 126, 372, 359, 302)
-# p2 = Pokemon("Durant",  "Bug",      "Steel",    100, 254, 348, 323, 258)
-# p3 = Pokemon("Wailord", "Water",    None,       100, 156, 279, 189, 482)
-# p4 = Pokemon("Pikachu", "Electric", None,       100, 212, 209, 179, 216)
-
-# fight(p4, p2)
 pokemon_1 = create_pokemon("golem")
 pokemon_2 = create_pokemon("durant")
 pokemon_3 = create_pokemon("wailord")
